@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Gemini Resume Optimizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .input-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 150px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 10px 0;
+            font-family: inherit;
+        }
+
+        #submitBtn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            transition: 0.3s;
+        }
+
+        #submitBtn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .results-grid {
+            display: none;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            height: 80vh;
+        }
+
+        .column {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #dee2e6;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: #e9ecef;
+            padding: 15px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .content {
+            padding: 20px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        /* Analysis Formatting */
+        .content h1,
+        .content h2 {
+            color: #0056b3;
+            font-size: 1.4rem;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+
+        th {
+            background: #f8f9fa;
+        }
+
+        /* LaTeX Code Formatting */
+        pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            margin: 0;
+            white-space: pre-wrap;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .secondary-btn {
+            padding: 5px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            border: 1px solid #007bff;
+            background: white;
+            color: #007bff;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="input-card">
+            <h2>Resume Optimizer & Rewriter</h2>
+            <form id="resumeForm">
+                <div style="margin-bottom: 15px;">
+                    <label for="apiKey" style="font-weight: bold; display: block; margin-bottom: 5px;">Gemini API
+                        Key:</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="password" name="api_key" id="apiKey" placeholder="Paste your API key here..."
+                            style="flex-grow: 1; padding: 10px; border-radius: 8px; border: 1px solid #ddd;">
+                        <button type="button" id="loadModelsBtn" onclick="loadModels()"
+                            style="background: #27ae60; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; white-space: nowrap;">
+                            Load Models
+                        </button>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label for="modelSelector" style="font-weight: bold; display: block; margin-bottom: 5px;">AI
+                        Reasoning Model:</label>
+                    <select name="model_id" id="modelSelector" disabled
+                        style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ddd; background: #eee;">
+                        <option value="">Click 'Load Models' after entering key...</option>
+                    </select>
+                </div>
+                <textarea name="job_description" placeholder="Paste target Job Description here..." required></textarea>
+                <input type="file" name="resume" accept=".tex,.txt" required>
+                <button type="submit" id="submitBtn">Analyze & Rewrite</button>
+            </form>
+        </div>
+
+        <div class="results-grid" id="resultsGrid">
+            <div class="column">
+                <div class="header">Changes & Optimization Analysis</div>
+                <div class="content" id="analysisOutput"></div>
+            </div>
+
+            <div class="column">
+                <div class="header">
+                    Modified LaTeX Output
+                    <div class="btn-group">
+                        <button class="secondary-btn" onclick="copyLatex()">Copy Code</button>
+                        <button class="secondary-btn" onclick="downloadLatex()">Download .tex</button>
+                        <button class="secondary-btn" id="pdfBtn" onclick="downloadPdf()"
+                            style="background: #e74c3c; color: white; border-color: #c0392b;">Download PDF</button>
+                    </div>
+                </div>
+                <div class="content" style="background: #282c34;">
+                    <pre id="latexOutput"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('resumeForm');
+        const btn = document.getElementById('submitBtn');
+        const grid = document.getElementById('resultsGrid');
+        const apiKeyInput = document.getElementById('apiKey');
+        const modelSelector = document.getElementById('modelSelector');
+        const loadBtn = document.getElementById('loadModelsBtn');
+
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+
+            // 1. Prepare UI for loading
+            btn.disabled = true;
+            btn.innerText = "Gemini is rewriting your resume... (this takes ~20s)";
+
+            // Optional: Hide previous results to focus on the new one
+            grid.style.display = 'none';
+
+            const formData = new FormData(form);
+
+            try {
+                const response = await fetch('/analyze', { method: 'POST', body: formData });
+                const data = await response.json();
+
+                if (data.result) {
+                    const rawResponse = data.result;
+
+                    // 2. Parse and Render
+                    const analysisPart = rawResponse.split('---BEGIN_ANALYSIS---')[1]?.split('---BEGIN_LATEX---')[0] || "Analysis parsing failed.";
+                    const latexPart = rawResponse.split('---BEGIN_LATEX---')[1] || "LaTeX parsing failed.";
+
+                    document.getElementById('analysisOutput').innerHTML = marked.parse(analysisPart);
+                    document.getElementById('latexOutput').innerText = latexPart.trim();
+
+                    // 3. Show Grid and Reset Button
+                    grid.style.display = 'grid';
+                    btn.innerText = "Analyze & Rewrite for New JD"; // Change text to invite new input
+                    btn.disabled = false; // RE-ENABLE HERE
+
+                    // Smooth scroll to results
+                    grid.scrollIntoView({ behavior: 'smooth' });
+
+                } else {
+                    alert("Error: " + data.error);
+                    btn.disabled = false;
+                    btn.innerText = "Analyze & Rewrite";
+                }
+            } catch (err) {
+                console.error(err);
+                alert("An error occurred during the analysis.");
+                btn.disabled = false;
+                btn.innerText = "Analyze & Rewrite";
+            }
+        };
+
+        function copyLatex() {
+            const text = document.getElementById('latexOutput').innerText;
+            navigator.clipboard.writeText(text);
+            alert("LaTeX code copied to clipboard!");
+        }
+
+        function downloadLatex() {
+            const text = document.getElementById('latexOutput').innerText;
+            const blob = new Blob([text], { type: 'text/plain' });
+            const anchor = document.createElement('a');
+            anchor.download = "optimized_resume.tex";
+            anchor.href = (window.webkitURL || window.URL).createObjectURL(blob);
+            anchor.click();
+        }
+
+        async function downloadPdf() {
+            const latex = document.getElementById('latexOutput').innerText;
+            const btn = document.getElementById('pdfBtn');
+
+            btn.innerText = "Compiling...";
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/download-pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ latex: latex })
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = "optimized_resume.pdf";
+                    a.click();
+                } else {
+                    const err = await response.json();
+                    alert("PDF Error: " + err.details);
+                }
+            } catch (e) {
+                alert("Server connection failed.");
+            } finally {
+                btn.innerText = "Download PDF";
+                btn.disabled = false;
+            }
+        }
+        // Function to fetch models from your new backend route
+
+        // This function resets the button whenever the user types something new
+        apiKeyInput.addEventListener('input', () => {
+            loadBtn.innerText = "Load Models";
+            loadBtn.disabled = false;
+            loadBtn.style.background = "#27ae60"; // Back to original green
+
+            // Optional: Gray out the model selector until the new key is validated
+            const modelSelector = document.getElementById('modelSelector');
+            modelSelector.disabled = true;
+            modelSelector.style.background = "#eee";
+        });
+
+        async function loadModels() {
+            const userKey = apiKeyInput.value.trim();
+            const modelSelector = document.getElementById('modelSelector');
+
+            if (!userKey) {
+                alert("Please enter an API key.");
+                return;
+            }
+
+            loadBtn.innerText = "Validating...";
+            loadBtn.disabled = true;
+
+            try {
+                const response = await fetch('/get-models', {
+                    headers: { 'X-Gemini-Key': userKey }
+                });
+                const data = await response.json();
+
+                if (response.ok && data.models) {
+                    modelSelector.disabled = false;
+                    modelSelector.style.background = "white";
+                    modelSelector.innerHTML = '';
+
+                    data.models.forEach(model => {
+                        const opt = document.createElement('option');
+                        opt.value = model;
+                        opt.innerText = model;
+                        modelSelector.appendChild(opt);
+                    });
+
+                    loadBtn.innerText = "Key Validated ✅";
+                    loadBtn.style.background = "#2ecc71";
+                    // Keep it disabled so they don't click it again 
+                    // until they change the key in the input box.
+                    loadBtn.disabled = true;
+                } else {
+                    alert("Error: " + (data.error || "Invalid Key"));
+                    loadBtn.innerText = "Load Models";
+                    loadBtn.disabled = false;
+                }
+            } catch (e) {
+                alert("Server error. Check your connection.");
+                loadBtn.disabled = false;
+            }
+        }
+    </script>
+
+</body>
+
+</html>

@@ -224,9 +224,9 @@ def download_pdf():
 
         try:
             # 3. Run Tectonic with continue-on-errors flag
-            tectonic_path = r"C:\Users\aures\scoop\shims\tectonic.exe"
+            # tectonic_path = r"C:\Users\<username>\scoop\shims\tectonic.exe"
             result = subprocess.run(
-                [tectonic_path, "-X", "compile", "-Z", "continue-on-errors", "resume.tex"],
+                ["tectonic", "-X", "compile", "-Z", "continue-on-errors", "resume.tex"],
                 cwd=tmpdir,
                 capture_output=True,
                 text=True
